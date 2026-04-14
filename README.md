@@ -1,4 +1,4 @@
-# AgentsProj - 智能 GitHub 仓库分析系统
+# GitPulse AI 技术情报分析系统
 
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.11-green.svg)](https://spring.io/projects/spring-boot)
 [![Java](https://img.shields.io/badge/Java-21-blue.svg)](https://openjdk.org/)
@@ -6,7 +6,7 @@
 
 ## 项目简介
 
-AgentsProj 是一个基于 Spring AI 和 MCP (Model Context Protocol) 的智能 GitHub 仓库分析系统。该系统通过多代理协作架构，能够自动分析 GitHub 仓库的技术栈、生成技术报告，并提供智能化的仓库洞察。
+🚀 GitPulse AI: A high-performance Multi-Agent system for automated GitHub technical intelligence. Built with Java 21, Spring AI, and MCP. 基于 Java 21 和多智能体协同的 GitHub 仓库深度评估系统，支持高并发任务处理与结构化情报生成。
 
 ## 核心功能
 
