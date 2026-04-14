@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: agents-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+      MYSQL_DATABASE: agents_proj
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --server-timezone=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: agents-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rmqnamesrv:
+    image: apache/rocketmq:5.3.0
+    container_name: agents-rmqnamesrv
+    ports:
+      - "9876:9876"
+    environment:
+      JAVA_OPT: "-Xms256m -Xmx256m -Xmn128m"
+    command: sh mqnamesrv
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9876 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rmqbroker:
+    image: apache/rocketmq:5.3.0
+    container_name: agents-rmqbroker
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+      - "10912:10912"
+    environment:
+      JAVA_OPT: "-Xms512m -Xmx512m -Xmn256m"
+    depends_on:
+      rmqnamesrv:
+        condition: service_healthy
+    command: sh mqbroker -n rmqnamesrv:9876 -c brokerIP1=127.0.0.1 autoCreateTopicEnable=true
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 10911 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  github-mcp:
+    image: ghcr.io/github/github-mcp-server:latest
+    container_name: agents-github-mcp
+    ports:
+      - "3000:8080"
+    environment:
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_MCP_TRANSPORT: stdio
+    stdin_open: true
+    tty: true
+
+volumes:
+  mysql_data:
+  redis_data:

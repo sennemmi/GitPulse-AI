@@ -1,0 +1,77 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    compatibility-verifier:
+      enabled: false
+  application:
+    name: AgentsProj
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6380
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/agents_proj?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: ${MYSQL_PASSWORD:your_mysql_password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  threads:
+    virtual:
+      enabled: true
+  ai:
+    # OpenAI 兼容配置（用于连接 ModelScope 魔搭社区）
+    openai:
+      api-key: ${MODELSCOPE_API_KEY:your_modelscope_api_key}
+      base-url: https://api-inference.modelscope.cn
+      chat:
+        options:
+          model: Qwen/Qwen3-30B-A3B-Instruct-2507
+          max-tokens: 4096
+    # MCP Client 配置
+    mcp:
+      client:
+        enabled: true
+        request-timeout: 120s
+        stdio:
+          connections:
+            github-mcp:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - GITHUB_PERSONAL_ACCESS_TOKEN
+                - ghcr.io/github/github-mcp-server
+              env:
+                GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN:your_github_token}
+
+# GitHub Token
+github:
+  token: ${GITHUB_TOKEN:your_github_token}
+
+# ModelScope 魔搭社区文生图 API 配置
+modelscope:
+  api-key: ${MODELSCOPE_API_KEY:your_modelscope_api_key}
+  base-url: https://api-inference.modelscope.cn/v1
+  image-model: Qwen/Qwen-Image-2512
+  poll-interval-ms: 30000
+  poll-max-attempts: 40
+
+# HTTP 代理配置（用于访问 GitHub 等外部服务）
+proxy:
+  enabled: true
+  host: ${PROXY_HOST:127.0.0.1}
+  port: ${PROXY_PORT:7890}
+
+# RocketMQ 配置
+rocketmq:
+  name-server: 127.0.0.1:9876
+  producer:
+    group: agents-producer-group
+    send-message-timeout: 3000

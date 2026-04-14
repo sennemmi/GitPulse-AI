@@ -1,0 +1,81 @@
+HELP.md
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Environment Variables ###
+.env
+.env.local
+.env.*.local
+*.env
+
+### Application Configuration with Secrets ###
+application-local.yaml
+application-local.yml
+application-prod.yaml
+application-prod.yml
+application-dev.yaml
+application-dev.yml
+application-*.yaml
+!application.yaml
+!application-example.yaml
+
+### Secrets ###
+*.secret
+*.key
+secrets/
+config/secrets/
+
+### Logs ###
+logs/
+*.log
+*.log.*
+
+### OS Generated Files ###
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+### Temporary Files ###
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+### Backup Files ###
+*.bak
+*.backup
