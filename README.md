@@ -6,7 +6,9 @@
 
 ## 项目简介
 
-🚀 GitPulse AI: A high-performance Multi-Agent system for automated GitHub technical intelligence. Built with Java 21, Spring AI, and MCP. 基于 Java 21 和多智能体协同的 GitHub 仓库深度评估系统，支持高并发任务处理与结构化情报生成。
+🚀 GitPulse AI: A high-performance Multi-Agent system for automated GitHub technical intelligence. Built with Java 21, Spring AI, and MCP. 基于 Java 21 和多智能体协同的 GitHub 仓库深度评估系统，支持异步任务处理、结构化情报生成和 Markdown 导出。
+
+项目提供两种运行模式：默认的演示模式不依赖 GitHub、模型或图片服务即可验证完整任务链路；真实模式通过 GitHub API、ModelScope 和可选的 GitHub MCP 获取实时数据。
 
 ## 核心功能
 
@@ -76,13 +78,14 @@
 - MySQL 8.0+
 - Redis 7.0+
 - RocketMQ 5.0+
-- Docker (用于运行 GitHub MCP Server)
+- Docker Engine + Docker Compose (用于运行 MySQL、Redis 和 RocketMQ)
+- WSL2 + Ubuntu 24.04（WSL 运行方式）
 
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/yourusername/AgentsProj.git
-cd AgentsProj
+git clone https://github.com/sennemmi/GitPulse-AI.git
+cd GitPulse-AI
 ```
 
 ### 2. 配置环境变量
@@ -114,54 +117,65 @@ $env:MODELSCOPE_API_KEY="your_modelscope_api_key"
 ### 3. 启动依赖服务
 
 ```bash
-# 使用 Docker Compose 启动 MySQL、Redis、RocketMQ
-docker-compose up -d
+# 使用脚本启动并等待 MySQL、Redis、RocketMQ 健康
+bash start-deps.sh
 
-# 或使用项目提供的脚本 (Windows)
+# Windows PowerShell/CMD
 start-deps.bat
 ```
 
-### 4. 运行项目
+### 4. 在 WSL 中运行项目
 
 ```bash
-# 开发模式运行
-./mvnw spring-boot:run
+# 确保 JAVA_HOME 指向 JDK 21
+export JAVA_HOME=/path/to/jdk-21
+export PATH="$JAVA_HOME/bin:$PATH"
 
-# 或打包后运行
-./mvnw clean package
-java -jar target/AgentsProj-0.0.1-SNAPSHOT.jar
+# 打包（当前 WSL 演示环境已验证）
+./mvnw -DskipTests package
+
+# 使用 WSL 配置启动，端口为 18080
+java -jar target/AgentsProj-0.0.1-SNAPSHOT.jar --spring.profiles.active=wsl
 ```
+
+WSL 配置默认使用 `app.demo-mode=true`、关闭 MCP 和代理，因此可以在没有外部 API Key 的情况下验证任务链路。真实运行时设置 `app.demo-mode=false`，并提供 `GITHUB_TOKEN`、`MODELSCOPE_API_KEY` 及所需的 MCP 配置。
 
 ## API 接口
 
-### 分析 GitHub 仓库
+### 获取幂等 Token
 
 ```http
-POST /api/agent/analyze
+GET /api/agent/token
+```
+
+### 提交异步任务
+
+```http
+POST /api/agent/chat
 Content-Type: application/json
+Idempotency-Token: <token>
 
 {
-  "repoUrl": "https://github.com/username/repository"
+  "message": "分析 https://github.com/sennemmi/GitPulse-AI"
 }
 ```
 
-### 获取分析结果
+接口返回 `taskId`。支持的自然语言示例包括：
+
+- `分析 https://github.com/owner/repository`
+- `查看 GitHub 热榜`
+- `analyze and publish https://github.com/owner/repository`
+- `export 一段项目介绍`
+
+### 查询任务结果
 
 ```http
-GET /api/agent/result/{taskId}
+GET /api/agent/task/{taskId}
 ```
 
-### 生成技术报告
+任务状态通常依次为 `PENDING`、`INTENT_RECOGNIZED`、`DATA_FETCHING`、`AI_ANALYZING`、`REPORT_GENERATING`、`SUCCESS` 或 `FAILED`。
 
-```http
-POST /api/agent/report
-Content-Type: application/json
-
-{
-  "repoUrl": "https://github.com/username/repository",
-  "includeImage": true
-}
-```
+启用发布/导出意图时，Markdown 文件默认写入 `exports/`。
 
 ## 配置说明
 
@@ -173,7 +187,9 @@ Content-Type: application/json
 | `spring.ai.openai.api-key` | ModelScope API Key | `MODELSCOPE_API_KEY` |
 | `github.token` | GitHub Personal Access Token | `GITHUB_TOKEN` |
 | `spring.ai.mcp.client.stdio.connections.github-mcp.env.GITHUB_PERSONAL_ACCESS_TOKEN` | MCP GitHub Token | `GITHUB_TOKEN` |
-| `proxy.enabled` | 是否启用代理 | - |
+| `app.demo-mode` | 是否使用本地确定性演示数据 | `APP_DEMO_MODE` |
+| `spring.ai.mcp.client.enabled` | 是否启用 GitHub MCP 客户端 | `MCP_ENABLED` |
+| `proxy.enabled` | 是否启用代理 | `PROXY_ENABLED` |
 | `proxy.host` | 代理服务器地址 | `PROXY_HOST` |
 | `proxy.port` | 代理服务器端口 | `PROXY_PORT` |
 
@@ -220,9 +236,13 @@ AgentsProj/
 │   └── AgentsProjApplication.java
 ├── src/main/resources/
 │   ├── prompts/            # AI Prompt 模板
-│   ├── application.yaml    # 应用配置
+│   ├── application.yaml    # 默认应用配置
+│   ├── application-wsl.yaml # WSL 本地依赖配置
+│   ├── schema.sql          # MySQL 初始化表结构
 │   └── logback-spring.xml  # 日志配置
 ├── docker-compose.yml      # Docker 编排配置
+├── start-deps.sh            # WSL/Linux 依赖启动脚本
+├── Dockerfile               # 多阶段构建镜像
 └── pom.xml                 # Maven 配置
 ```
 

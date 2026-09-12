@@ -6,10 +6,13 @@ import cn.hhu.sen.agentsproj.model.TechReport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -17,19 +20,32 @@ public class ReportAgent {
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
+    private final boolean demoMode;
 
     public ReportAgent(ChatClient.Builder builder,
                        ObjectMapper objectMapper,
-                       SyncMcpToolCallbackProvider mcpToolCallbackProvider) {
-        this.chatClient = builder
-                .defaultToolCallbacks(mcpToolCallbackProvider.getToolCallbacks())
-                .build();
+                       ObjectProvider<SyncMcpToolCallbackProvider> mcpToolCallbackProvider,
+                       @Value("${app.demo-mode:false}") boolean demoMode) {
+        ChatClient.Builder reportBuilder = builder;
+        SyncMcpToolCallbackProvider provider = mcpToolCallbackProvider.getIfAvailable();
+        if (provider != null) {
+            reportBuilder = reportBuilder.defaultToolCallbacks(provider.getToolCallbacks());
+        }
+        this.chatClient = reportBuilder.build();
         this.objectMapper = objectMapper;
+        this.demoMode = demoMode;
     }
 
     public TechReport generateTechReport(ProjectAnalysis analysis) {
         log.info("[ReportAgent] 开始生成技术报告: {}", analysis.getFullName());
         long start = System.currentTimeMillis();
+
+        if (demoMode) {
+            TechReport report = buildDemoReport(analysis);
+            log.info("[ReportAgent] 演示模式完成 | 项目: {} | 评分: {} | 耗时: {}ms",
+                    report.getRepoName(), report.getScore(), System.currentTimeMillis() - start);
+            return report;
+        }
 
         String userInput = """
                 项目名称：%s
@@ -81,5 +97,25 @@ public class ReportAgent {
             fallback.setGeneratedAt(LocalDateTime.now());
             return fallback;
         }
+    }
+
+    private TechReport buildDemoReport(ProjectAnalysis analysis) {
+        TechReport report = new TechReport();
+        report.setRepoName(analysis.getFullName());
+        report.setSummary(analysis.getOneLiner());
+        report.setMaturity("Beta");
+        report.setTechStack(analysis.getTags() == null || analysis.getTags().isEmpty()
+                ? List.of("Java 21", "Spring Boot") : analysis.getTags());
+        report.setCoreValue("项目已经形成从请求接入、意图识别、数据研究到报告生成的主流程，"
+                + "并通过 RocketMQ、Redis 和 MySQL 具备异步化、缓存和持久化基础。");
+        report.setRiskPoints(List.of(
+                "真实模式仍依赖 GitHub、模型和 RocketMQ 等外部服务",
+                "生产环境需要补充认证、限流策略和可观测性配置"
+        ));
+        report.setAdoptionAdvice("适合作为技术情报原型或内部工具继续迭代；正式上线前应切换真实凭证并补齐安全与运维能力。");
+        report.setCompetitorComparison("GitHub Trending：偏实时热榜抓取；GitPulse AI：增加结构化分析、报告生成与异步任务编排。");
+        report.setScore(78);
+        report.setGeneratedAt(LocalDateTime.now());
+        return report;
     }
 }

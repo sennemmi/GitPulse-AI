@@ -122,7 +122,7 @@ public class GitHubApiClient {
         log.debug("[GitHubApiClient] 获取贡献者数量: {}/{}", owner, repo);
         try {
             Object[] contributors = webClient.get()
-                    .uri("/repos/{owner}/{repo}/contributors?per_page=1&anon=true", owner, repo)
+                    .uri("/repos/{owner}/{repo}/contributors?per_page=100&anon=true", owner, repo)
                     .retrieve()
                     .bodyToMono(Object[].class)
                     .block();

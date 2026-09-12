@@ -7,7 +7,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
@@ -37,7 +37,7 @@ public class GitHubWorkflowService {
     private final GitHubTools gitHubTools;
     private final ReportAgent reportAgent;
     private final ImageTools imageTools;
-    private final SyncMcpToolCallbackProvider mcpToolCallbackProvider;
+    private final ReportExportService reportExportService;
     private final ObjectMapper objectMapper;
     private final IntentAgent intentAgent;
     private final TaskRecordRepository taskRepository;
@@ -48,23 +48,27 @@ public class GitHubWorkflowService {
                                  GitHubTools gitHubTools,
                                  ReportAgent reportAgent,
                                  ImageTools imageTools,
-                                 SyncMcpToolCallbackProvider mcpToolCallbackProvider,
+                                 ReportExportService reportExportService,
                                  ObjectMapper objectMapper,
                                  IntentAgent intentAgent,
                                  TaskRecordRepository taskRepository,
                                  RocketMQTemplate rocketMQTemplate,
-                                 AnalysisCacheService analysisCacheService) {
+                                 AnalysisCacheService analysisCacheService,
+                                 @Value("${app.demo-mode:false}") boolean demoMode) {
         this.chatClient = chatClientBuilder.build();
         this.gitHubTools = gitHubTools;
         this.reportAgent = reportAgent;
         this.imageTools = imageTools;
-        this.mcpToolCallbackProvider = mcpToolCallbackProvider;
+        this.reportExportService = reportExportService;
         this.objectMapper = objectMapper;
         this.intentAgent = intentAgent;
         this.taskRepository = taskRepository;
         this.rocketMQTemplate = rocketMQTemplate;
         this.analysisCacheService = analysisCacheService;
+        this.demoMode = demoMode;
     }
+
+    private final boolean demoMode;
 
     @Transactional
     public String submitTask(WorkflowContext ctx) {
@@ -99,6 +103,12 @@ public class GitHubWorkflowService {
         if (TaskStatus.SUCCESS.name().equals(task.getStatus())) {
             log.info("[Workflow] 任务已成功，忽略重复投递, taskId: {}", taskId);
             return;
+        }
+
+        if (TaskStatus.FAILED.name().equals(task.getStatus())) {
+            task.setStatus(TaskStatus.PENDING.name());
+            taskRepository.save(task);
+            log.info("[Workflow] 重试任务重置为 PENDING, taskId: {}", taskId);
         }
 
         try {
@@ -200,8 +210,15 @@ public class GitHubWorkflowService {
         String imagePrompt = buildImagePrompt(ctx.getAnalysis());
         String imageUrl = imageTools.generateImage(imagePrompt);
         ctx.setImageUrl(imageUrl);
+        String exportPath = reportExportService.export(
+                ctx.getSessionId(),
+                report.getRepoName() + " 技术分析报告",
+                formatTechReport(report),
+                report.getTechStack(),
+                imageUrl);
 
-        return "技术报告生成成功！\n\n" + formatTechReport(report) + "\n\n图片：" + imageUrl;
+        return "技术报告生成成功！\n\n" + formatTechReport(report)
+                + "\n\n图片：" + imageUrl + "\n\n导出文件：" + exportPath;
     }
 
     private TechReport executeResearchAndGenerate(WorkflowContext ctx, TaskRecord task) {
@@ -218,7 +235,19 @@ public class GitHubWorkflowService {
     }
 
     private String executeDirectPublish(WorkflowContext ctx) {
-        String extracted = chatClient.prompt()
+        String extracted;
+        if (demoMode) {
+            DirectPublishRequest request = new DirectPublishRequest(
+                    "GitPulse AI 直接导出",
+                    ctx.getUserMessage(),
+                    List.of("GitPulse AI", "demo"),
+                    "");
+            String exportPath = reportExportService.export(ctx.getSessionId(), request.title(),
+                    request.body(), request.tags(), request.imageUrl());
+            return "直接导出成功！\n\n文件：" + exportPath;
+        }
+
+        extracted = chatClient.prompt()
                 .system(new ClassPathResource("prompts/direct-publish-agent.st"))
                 .user(ctx.getUserMessage())
                 .call()
@@ -233,8 +262,11 @@ public class GitHubWorkflowService {
             report.setSummary(request.title());
             report.setCoreValue(request.body());
             report.setTechStack(request.tags());
+            String exportPath = reportExportService.export(ctx.getSessionId(), request.title(),
+                    request.body(), request.tags(), request.imageUrl());
 
-            return "直接发布成功！\n\n标题：" + request.title() + "\n图片：" + request.imageUrl();
+            return "直接导出成功！\n\n标题：" + request.title()
+                    + "\n图片：" + request.imageUrl() + "\n文件：" + exportPath;
         } catch (Exception e) {
             log.error("[Workflow] 直接发布解析失败", e);
             throw new NonRetryableException("PARSE_ERROR", "解析发布内容失败: " + e.getMessage(), e);

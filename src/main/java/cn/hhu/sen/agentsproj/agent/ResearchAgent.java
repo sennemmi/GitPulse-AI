@@ -1,6 +1,7 @@
 package cn.hhu.sen.agentsproj.agent;
 
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.Executors;
 
 import com.alibaba.csp.sentinel.Entry;
@@ -11,6 +12,7 @@ import cn.hhu.sen.agentsproj.client.GitHubApiClient;
 import cn.hhu.sen.agentsproj.model.ProjectAnalysis;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -21,18 +23,28 @@ public class ResearchAgent {
     private final ChatClient chatClient;
     private final GitHubApiClient apiClient;
     private final ObjectMapper objectMapper;
+    private final boolean demoMode;
 
     public ResearchAgent(ChatClient.Builder builder,
                          GitHubApiClient apiClient,
-                         ObjectMapper objectMapper) {
+                         ObjectMapper objectMapper,
+                         @Value("${app.demo-mode:false}") boolean demoMode) {
         this.chatClient = builder.build();
         this.apiClient = apiClient;
         this.objectMapper = objectMapper;
+        this.demoMode = demoMode;
     }
 
     public ProjectAnalysis run(String fullName) {
         log.info("[ResearchAgent] 开始研究: {}", fullName);
         long start = System.currentTimeMillis();
+
+        if (demoMode) {
+            ProjectAnalysis analysis = buildDemoAnalysis(fullName);
+            log.info("[ResearchAgent] 演示模式完成: {} | 耗时: {}ms", fullName,
+                    System.currentTimeMillis() - start);
+            return analysis;
+        }
 
         String[] parts = fullName.split("/");
         String owner = parts[0];
@@ -134,5 +146,21 @@ public class ResearchAgent {
             fallback.setWhyPopular(json);
             return fallback;
         }
+    }
+
+    private ProjectAnalysis buildDemoAnalysis(String fullName) {
+        ProjectAnalysis analysis = new ProjectAnalysis();
+        analysis.setFullName(fullName);
+        analysis.setOneLiner("基于 Spring Boot 与多智能体协作的 GitHub 技术情报分析系统");
+        analysis.setWhyPopular("把仓库研究、结构化报告和异步任务处理组合成一条可复用的分析流水线。");
+        analysis.setHighlights(List.of(
+                "IntentAgent、ResearchAgent、ReportAgent 分工协作",
+                "RocketMQ 异步编排与 Redis 缓存/分布式锁",
+                "Java 21 虚拟线程承载并发 I/O 任务"
+        ));
+        analysis.setTargetAudience("需要批量评估开源项目的研发、架构和技术选型团队");
+        analysis.setQuickStart("./mvnw spring-boot:run -Dspring-boot.run.profiles=wsl");
+        analysis.setTags(List.of("Java 21", "Spring Boot", "Spring AI", "RocketMQ", "Redis"));
+        return analysis;
     }
 }

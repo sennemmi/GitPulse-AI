@@ -7,6 +7,9 @@ spring:
       enabled: false
   application:
     name: AgentsProj
+  sql:
+    init:
+      mode: always
   data:
     redis:
       host: 127.0.0.1
@@ -35,7 +38,7 @@ spring:
     # MCP Client 配置
     mcp:
       client:
-        enabled: true
+        enabled: ${MCP_ENABLED:false}
         request-timeout: 120s
         stdio:
           connections:
@@ -65,7 +68,7 @@ modelscope:
 
 # HTTP 代理配置（用于访问 GitHub 等外部服务）
 proxy:
-  enabled: true
+  enabled: ${PROXY_ENABLED:false}
   host: ${PROXY_HOST:127.0.0.1}
   port: ${PROXY_PORT:7890}
 
@@ -75,3 +78,7 @@ rocketmq:
   producer:
     group: agents-producer-group
     send-message-timeout: 3000
+
+app:
+  demo-mode: ${APP_DEMO_MODE:false}
+  export-dir: ${APP_EXPORT_DIR:exports}

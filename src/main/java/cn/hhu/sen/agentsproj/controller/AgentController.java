@@ -55,6 +55,13 @@ public class AgentController {
             @RequestBody ChatRequest request,
             @RequestHeader("Idempotency-Token") String token) {
 
+        if (request == null || request.message() == null || request.message().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_REQUEST",
+                    "message", "message 不能为空"
+            ));
+        }
+
         RBucket<String> bucket = redissonClient.getBucket("idempotent:token:" + token);
         boolean consumed = bucket.compareAndSet("unused", "used");
         if (!consumed) {

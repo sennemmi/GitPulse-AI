@@ -2,6 +2,7 @@ package cn.hhu.sen.agentsproj.service;
 
 import cn.hhu.sen.agentsproj.agent.ResearchAgent;
 import cn.hhu.sen.agentsproj.entity.RepoAnalysisRecord;
+import cn.hhu.sen.agentsproj.exception.NonRetryableException;
 import cn.hhu.sen.agentsproj.model.ProjectAnalysis;
 import cn.hhu.sen.agentsproj.repository.RepoAnalysisRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -97,6 +98,8 @@ public class AnalysisCacheService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("获取锁被中断", e);
+        } catch (NonRetryableException e) {
+            throw e;
         } catch (Exception e) {
             log.error("分析执行异常", e);
             throw new RuntimeException("分析执行失败: " + e.getMessage(), e);

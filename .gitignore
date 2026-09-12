@@ -1,5 +1,6 @@
 HELP.md
 target/
+/exports/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -48,6 +49,7 @@ application-dev.yml
 application-*.yaml
 !application.yaml
 !application-example.yaml
+!application-wsl.yaml
 
 ### Secrets ###
 *.secret

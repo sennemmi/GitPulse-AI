@@ -3,6 +3,7 @@ package cn.hhu.sen.agentsproj.tools;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import cn.hhu.sen.agentsproj.client.ModelScopeImageClient;
@@ -16,9 +17,12 @@ public class ImageTools {
     private static final String AGENT_NAME = "ImageTools";
 
     private final ModelScopeImageClient imageClient;
+    private final boolean demoMode;
 
-    public ImageTools(ModelScopeImageClient imageClient) {
+    public ImageTools(ModelScopeImageClient imageClient,
+                      @Value("${app.demo-mode:false}") boolean demoMode) {
         this.imageClient = imageClient;
+        this.demoMode = demoMode;
     }
 
     @Tool(description = """
@@ -32,6 +36,12 @@ public class ImageTools {
         long startTime = System.currentTimeMillis();
 
         try {
+            if (demoMode) {
+                String demoUrl = "https://placehold.co/1200x630/png?text=GitPulse+AI";
+                log.info("[{}] 演示模式返回占位图片 | 耗时: {}ms", AGENT_NAME,
+                        System.currentTimeMillis() - startTime);
+                return demoUrl;
+            }
             String imageUrl = imageClient.generate(prompt);
             log.info("[{}] 工具函数 generateImage 执行成功 | 耗时: {}ms", AGENT_NAME, System.currentTimeMillis() - startTime);
             log.info("[{}] 返回内容: {}", AGENT_NAME, imageUrl);
