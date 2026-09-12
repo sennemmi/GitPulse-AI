@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
@@ -58,6 +59,17 @@ public class GlobalExceptionHandler {
                 LocalDateTime.now()
         );
         return ResponseEntity.status(ErrorCode.INVALID_PARAMETER.getHttpStatus()).body(response);
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<ErrorResponse> handleNotFound(NoSuchElementException e) {
+        log.warn("资源不存在: {}", e.getMessage());
+        ErrorResponse response = new ErrorResponse(
+                "NOT_FOUND",
+                e.getMessage(),
+                LocalDateTime.now()
+        );
+        return ResponseEntity.status(404).body(response);
     }
 
     @ExceptionHandler(ImageGenerationException.class)

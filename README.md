@@ -15,6 +15,7 @@
 - **智能仓库分析**：自动分析 GitHub 仓库的技术栈、架构和代码质量
 - **多代理协作**：采用 IntentAgent、ResearchAgent、ReportAgent 多代理架构
 - **技术报告生成**：基于 AI 生成详细的技术分析报告
+- **开源技术雷达**：维护仓库 Watchlist，按团队评估模板生成可解释评分、证据快照和横向比较
 - **文生图支持**：集成 ModelScope 魔搭社区 API，支持生成技术架构图
 - **MCP 协议支持**：通过 GitHub MCP Server 实现与 GitHub 的深度集成
 - **异步消息处理**：基于 RocketMQ 实现任务异步处理
@@ -177,6 +178,53 @@ GET /api/agent/task/{taskId}
 
 启用发布/导出意图时，Markdown 文件默认写入 `exports/`。
 
+### 技术雷达 API
+
+技术雷达用于把一次性仓库分析变成可持续的仓库评估。演示模式使用明确标记的 `demo://` 证据；真实模式会从 GitHub API 采集仓库元数据、README、根目录文件、贡献者数量和最近 commit。
+
+#### 创建 Watchlist 项目
+
+```http
+POST /api/radar/watchlist
+Content-Type: application/json
+
+{
+  "repoName": "owner/repository",
+  "displayName": "候选框架 A",
+  "criteria": {
+    "maintenance": 30,
+    "community": 25,
+    "productionFit": 20,
+    "documentation": 15,
+    "license": 10
+  }
+}
+```
+
+不传 `criteria` 时使用默认评估模板。当前评分规则是可解释的确定性规则，不把任意模型输出当作事实分数。
+
+```http
+GET  /api/radar/watchlist
+PUT  /api/radar/watchlist/{watchId}
+POST /api/radar/watchlist/{watchId}/scan
+GET  /api/radar/watchlist/{watchId}/snapshots
+DELETE /api/radar/watchlist/{watchId}
+POST /api/radar/scan-all
+```
+
+#### 横向比较
+
+```http
+POST /api/radar/compare
+Content-Type: application/json
+
+{
+  "watchIds": [1, 2, 3]
+}
+```
+
+比较接口返回各仓库最近一次快照的总分、分项得分、原始指标、证据和采集时间。定时扫描默认关闭，可通过 `RADAR_SCHEDULE_ENABLED=true` 开启，并用 `RADAR_SCAN_CRON` 配置 Cron 表达式。
+
 ## 配置说明
 
 ### application.yaml 配置项
@@ -225,13 +273,16 @@ AgentsProj/
 │   │   ├── GitHubApiClient.java
 │   │   └── ModelScopeImageClient.java
 │   ├── config/             # 配置类
-│   ├── controller/         # REST API 控制器
-│   ├── entity/             # 数据库实体
+│   ├── controller/         # REST API 控制器（含技术雷达 API）
+│   ├── entity/             # 数据库实体（含雷达 Watchlist 和快照）
 │   ├── exception/          # 异常处理
 │   ├── model/              # 数据模型
 │   ├── mq/                 # 消息队列消费者
 │   ├── repository/         # 数据访问层
 │   ├── service/            # 业务逻辑层
+│   │   ├── RadarDataService.java       # 仓库事实采集
+│   │   ├── RadarScoringService.java    # 可解释评分
+│   │   └── RadarService.java           # Watchlist/快照/比较
 │   ├── tools/              # AI 工具类
 │   └── AgentsProjApplication.java
 ├── src/main/resources/

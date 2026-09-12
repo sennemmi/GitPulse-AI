@@ -3,6 +3,7 @@ package cn.hhu.sen.agentsproj.client;
 import java.time.Duration;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.netty.channel.ChannelOption;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -138,6 +139,28 @@ public class GitHubApiClient {
             return -1;
         } catch (WebClientResponseException e) {
             throw GitHubApiException.apiError("获取贡献者数量失败: " + e.getStatusCode(), e);
+        }
+    }
+
+    public String getLatestCommitSha(String owner, String repo) {
+        log.debug("[GitHubApiClient] 获取最近 commit: {}/{}", owner, repo);
+        try {
+            JsonNode commits = webClient.get()
+                    .uri("/repos/{owner}/{repo}/commits?per_page=1", owner, repo)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .block();
+            if (commits != null && commits.isArray() && !commits.isEmpty()) {
+                JsonNode sha = commits.get(0).get("sha");
+                return sha == null ? "" : sha.asText("");
+            }
+            return "";
+        } catch (WebClientResponseException.NotFound e) {
+            throw NonRetryableException.githubNotFound(owner + "/" + repo);
+        } catch (WebClientResponseException.TooManyRequests e) {
+            throw GitHubApiException.rateLimit();
+        } catch (WebClientResponseException e) {
+            throw GitHubApiException.apiError("获取最近 commit 失败: " + e.getStatusCode(), e);
         }
     }
 }
