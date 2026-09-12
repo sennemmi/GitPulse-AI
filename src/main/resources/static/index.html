@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="GitPulse AI 开源技术雷达">
+    <title>GitPulse Radar</title>
+    <link rel="stylesheet" href="/radar.css">
+</head>
+<body>
+<div class="app-shell">
+    <header class="topbar">
+        <a class="brand" href="/" aria-label="GitPulse Radar 首页">
+            <span class="brand-mark">G</span>
+            <span>GitPulse <em>RADAR</em></span>
+        </a>
+        <div class="topbar-actions">
+            <span id="runtimeBadge" class="runtime-badge">连接中</span>
+            <button id="refreshButton" class="button button-quiet" type="button">刷新</button>
+            <button id="scanButton" class="button button-primary" type="button">扫描全部</button>
+        </div>
+    </header>
+
+    <main class="page-content">
+        <section class="hero">
+            <div>
+                <p class="eyebrow">OPEN-SOURCE INTELLIGENCE / 01</p>
+                <h1>把仓库热度，变成<br><span>可审计的选型判断。</span></h1>
+                <p class="hero-copy">持续追踪开源项目的维护状态、社区信号与生产适配度。每一个分数，都能回到原始证据。</p>
+            </div>
+            <div class="hero-orbit" aria-hidden="true">
+                <div class="orbit orbit-one"></div>
+                <div class="orbit orbit-two"></div>
+                <div class="orbit-core"><span>LIVE</span><strong>RADAR</strong></div>
+            </div>
+        </section>
+
+        <div id="notice" class="notice" role="status" hidden></div>
+
+        <section id="summaryGrid" class="summary-grid" aria-label="雷达概览">
+            <article class="summary-card">
+                <span class="summary-label">监控仓库</span>
+                <strong id="repoCount">—</strong>
+                <small>Watchlist 项目</small>
+            </article>
+            <article class="summary-card accent-blue">
+                <span class="summary-label">平均评分</span>
+                <strong id="averageScore">—</strong>
+                <small>最近一次快照</small>
+            </article>
+            <article class="summary-card accent-green">
+                <span class="summary-label">建议采用</span>
+                <strong id="recommendCount">—</strong>
+                <small>RECOMMEND 项目</small>
+            </article>
+            <article class="summary-card accent-orange">
+                <span class="summary-label">风险信号</span>
+                <strong id="riskCount">—</strong>
+                <small>需要人工复核</small>
+            </article>
+        </section>
+
+        <section class="content-grid">
+            <article class="panel watchlist-panel">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">WATCHLIST</p>
+                        <h2>仓库雷达</h2>
+                    </div>
+                    <button id="addButton" class="icon-button" type="button" title="添加仓库">+</button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>仓库</th>
+                            <th>评分</th>
+                            <th>判断</th>
+                            <th>风险</th>
+                            <th>数据</th>
+                        </tr>
+                        </thead>
+                        <tbody id="watchlistBody">
+                        <tr><td colspan="5" class="empty-cell">正在读取 Watchlist…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyState" class="empty-state" hidden>
+                    <div class="empty-icon">⌁</div>
+                    <h3>还没有监控仓库</h3>
+                    <p>添加一个公开 GitHub 仓库，开始建立第一条技术判断。</p>
+                    <button class="button button-primary" type="button" data-open-add>添加仓库</button>
+                </div>
+            </article>
+
+            <article class="panel insight-panel">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">SELECTED SIGNAL</p>
+                        <h2 id="selectedTitle">选择一个仓库</h2>
+                    </div>
+                    <span id="selectedSource" class="source-pill">等待数据</span>
+                </div>
+                <div id="detailPlaceholder" class="detail-placeholder">
+                    <div class="placeholder-mark">◎</div>
+                    <p>点击左侧仓库，查看分项评分、风险解释和证据来源。</p>
+                </div>
+                <div id="detailContent" hidden>
+                    <div class="score-banner">
+                        <div>
+                            <span class="summary-label">综合判断</span>
+                            <strong id="selectedDecision">—</strong>
+                            <p id="selectedSummary">—</p>
+                        </div>
+                        <div class="score-ring"><span id="selectedScore">—</span><small>/100</small></div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="section-title"><span>风险信号</span><small id="freshnessLabel">—</small></div>
+                        <div id="riskList" class="risk-list"></div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="section-title"><span>评估拆解</span><small>团队模板</small></div>
+                        <div id="criteriaList" class="criteria-list"></div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="section-title"><span>证据链</span><small id="collectedAt">—</small></div>
+                        <div id="evidenceList" class="evidence-list"></div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="section-title"><span>快照历史</span><small id="historyCount">—</small></div>
+                        <div id="historyList" class="history-list"></div>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="panel comparison-panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">SIGNAL MAP</p>
+                    <h2>横向比较</h2>
+                </div>
+                <span class="panel-caption">按最近快照排序</span>
+            </div>
+            <div id="comparisonChart" class="comparison-chart">
+                <div class="empty-cell">扫描仓库后，这里会显示评分分布。</div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<dialog id="watchDialog" class="modal">
+    <form id="watchForm" method="dialog">
+        <div class="modal-heading">
+            <div>
+                <p class="eyebrow">NEW WATCH</p>
+                <h2>添加监控仓库</h2>
+            </div>
+            <button id="closeDialogButton" class="close-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <label for="repoName">GitHub 仓库</label>
+        <input id="repoName" name="repoName" placeholder="owner/repository" pattern="[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+" required>
+        <small class="field-help">当前版本支持公开仓库，例如 microsoft/TypeScript。</small>
+        <label for="displayName">显示名称 <span>可选</span></label>
+        <input id="displayName" name="displayName" placeholder="例如：前端基础设施候选">
+        <div class="modal-actions">
+            <button id="cancelDialogButton" class="button button-quiet" type="button">取消</button>
+            <button class="button button-primary" type="submit">加入 Watchlist</button>
+        </div>
+    </form>
+</dialog>
+
+<script src="/radar.js" defer></script>
+</body>
+</html>

@@ -75,3 +75,11 @@ rocketmq:
   producer:
     group: agents-producer-group
     send-message-timeout: 3000
+
+app:
+  demo-mode: ${APP_DEMO_MODE:false}
+  export-dir: ${APP_EXPORT_DIR:exports}
+  radar:
+    demo-mode: ${RADAR_DEMO_MODE:false}
+    schedule-enabled: ${RADAR_SCHEDULE_ENABLED:false}
+    scan-cron: ${RADAR_SCAN_CRON:0 0 3 * * *}

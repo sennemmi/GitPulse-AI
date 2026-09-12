@@ -139,7 +139,15 @@ export PATH="$JAVA_HOME/bin:$PATH"
 java -jar target/AgentsProj-0.0.1-SNAPSHOT.jar --spring.profiles.active=wsl
 ```
 
-WSL 配置默认使用 `app.demo-mode=true`、关闭 MCP 和代理，因此可以在没有外部 API Key 的情况下验证任务链路。真实运行时设置 `app.demo-mode=false`，并提供 `GITHUB_TOKEN`、`MODELSCOPE_API_KEY` 及所需的 MCP 配置。
+启动后访问 `http://127.0.0.1:18080/` 打开技术雷达 Dashboard。WSL 配置默认让聊天链路使用 `app.demo-mode=true`，但雷达单独使用 `RADAR_DEMO_MODE=false`，因此公开仓库可以直接走 GitHub API；私有仓库或需要更稳定限额时再配置 `GITHUB_TOKEN`。如果 WSL 不能直连 GitHub，可开启代理：
+
+```bash
+export PROXY_ENABLED=true
+export PROXY_HOST=127.0.0.1
+export PROXY_PORT=7890
+```
+
+聊天链路需要真实模型时，再设置 `APP_DEMO_MODE=false` 和 `MODELSCOPE_API_KEY`。
 
 ## API 接口
 
@@ -180,7 +188,9 @@ GET /api/agent/task/{taskId}
 
 ### 技术雷达 API
 
-技术雷达用于把一次性仓库分析变成可持续的仓库评估。演示模式使用明确标记的 `demo://` 证据；真实模式会从 GitHub API 采集仓库元数据、README、根目录文件、贡献者数量和最近 commit。
+技术雷达用于把一次性仓库分析变成可持续的仓库评估。根路径 Dashboard 支持添加仓库、批量扫描、查看评分拆解、风险信号、证据来源和快照历史。演示模式使用明确标记的 `demo://` 证据；真实模式会从 GitHub API 采集仓库元数据、README、根目录文件、贡献者数量和最近 commit。
+
+真实快照会额外返回 `risks` 和 `freshness`：风险标签由确定性规则生成，数据新鲜度根据快照时间分为 `FRESH`、`AGING`、`STALE`，不会把模型猜测伪装成事实。
 
 #### 创建 Watchlist 项目
 
@@ -236,10 +246,13 @@ Content-Type: application/json
 | `github.token` | GitHub Personal Access Token | `GITHUB_TOKEN` |
 | `spring.ai.mcp.client.stdio.connections.github-mcp.env.GITHUB_PERSONAL_ACCESS_TOKEN` | MCP GitHub Token | `GITHUB_TOKEN` |
 | `app.demo-mode` | 是否使用本地确定性演示数据 | `APP_DEMO_MODE` |
+| `app.radar.demo-mode` | 技术雷达是否使用演示数据 | `RADAR_DEMO_MODE` |
 | `spring.ai.mcp.client.enabled` | 是否启用 GitHub MCP 客户端 | `MCP_ENABLED` |
 | `proxy.enabled` | 是否启用代理 | `PROXY_ENABLED` |
 | `proxy.host` | 代理服务器地址 | `PROXY_HOST` |
 | `proxy.port` | 代理服务器端口 | `PROXY_PORT` |
+| `app.radar.scan-cron` | 雷达定时扫描表达式 | `RADAR_SCAN_CRON` |
+| `app.radar.schedule-enabled` | 是否启用雷达定时扫描 | `RADAR_SCHEDULE_ENABLED` |
 
 ## 获取 API Key
 
@@ -290,6 +303,7 @@ AgentsProj/
 │   ├── application.yaml    # 默认应用配置
 │   ├── application-wsl.yaml # WSL 本地依赖配置
 │   ├── schema.sql          # MySQL 初始化表结构
+│   ├── static/              # 技术雷达 Dashboard
 │   └── logback-spring.xml  # 日志配置
 ├── docker-compose.yml      # Docker 编排配置
 ├── start-deps.sh            # WSL/Linux 依赖启动脚本

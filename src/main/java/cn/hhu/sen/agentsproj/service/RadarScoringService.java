@@ -1,6 +1,7 @@
 package cn.hhu.sen.agentsproj.service;
 
 import cn.hhu.sen.agentsproj.model.RadarEvaluation;
+import cn.hhu.sen.agentsproj.model.RadarRisk;
 import cn.hhu.sen.agentsproj.model.RepositorySnapshotData;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,6 +12,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -80,11 +83,52 @@ public class RadarScoringService {
         int score = totalWeight == 0 ? 0 : Math.round((float) weightedScore / totalWeight);
         String decision = score >= 80 ? "RECOMMEND" : score >= 60 ? "PILOT" : "WATCH";
         Map<String, Object> metrics = data.getMetrics();
+        List<RadarRisk> risks = identifyRisks(metrics);
         String summary = "总分 " + score + "/100，建议 " + decision
                 + "；最近推送 " + value(metrics, "lastPushedAt")
                 + "，Stars " + value(metrics, "stars")
-                + "，License " + (value(metrics, "license").isBlank() ? "未知" : value(metrics, "license"));
-        return new RadarEvaluation(score, decision, summary, criterionScores);
+                + "，License " + (value(metrics, "license").isBlank() ? "未知" : value(metrics, "license"))
+                + "；风险 " + risks.size() + " 项";
+        return new RadarEvaluation(score, decision, summary, criterionScores, risks);
+    }
+
+    private List<RadarRisk> identifyRisks(Map<String, Object> metrics) {
+        List<RadarRisk> risks = new ArrayList<>();
+        boolean archived = Boolean.parseBoolean(value(metrics, "archived"));
+        String license = value(metrics, "license");
+        String pushedAt = value(metrics, "lastPushedAt");
+        long contributors = number(metrics, "contributors");
+        long openIssues = number(metrics, "openIssues");
+        long readmeChars = number(metrics, "readmeChars");
+
+        if (archived) {
+            risks.add(new RadarRisk("ARCHIVED", "HIGH", "仓库已归档", "仓库已被 GitHub 标记为 archived，不适合作为新的长期依赖。"));
+        }
+        if (license.isBlank()) {
+            risks.add(new RadarRisk("NO_LICENSE", "HIGH", "缺少许可证", "无法确认再分发、商用和二次修改边界，需要人工确认。"));
+        }
+        long daysSincePush = daysSince(pushedAt);
+        if (!archived && daysSincePush > 365) {
+            risks.add(new RadarRisk("STALE_ACTIVITY", "HIGH", "长期未维护", "最近一次推送已经超过一年，需确认项目是否仍然活跃。"));
+        } else if (!archived && daysSincePush > 180) {
+            risks.add(new RadarRisk("STALE_ACTIVITY", "MEDIUM", "维护活跃度下降", "最近一次推送已经超过六个月，建议检查维护者响应情况。"));
+        }
+        if (readmeChars < 500) {
+            risks.add(new RadarRisk("LOW_DOCUMENTATION", "MEDIUM", "文档信号较弱", "README 内容较少，接入成本和使用边界需要额外核实。"));
+        }
+        if (!Boolean.parseBoolean(value(metrics, "hasBuildFile"))) {
+            risks.add(new RadarRisk("NO_BUILD_SIGNAL", "MEDIUM", "缺少构建入口", "根目录未发现常见构建文件，自动化构建和复现成本可能较高。"));
+        }
+        if (contributors >= 0 && contributors <= 2) {
+            risks.add(new RadarRisk("LOW_BUS_FACTOR", "MEDIUM", "维护者集中", "贡献者数量很少，项目可能依赖单一维护者。"));
+        }
+        if (openIssues >= 500) {
+            risks.add(new RadarRisk("ISSUE_BACKLOG", "LOW", "开放问题较多", "当前开放 issue 数量较高，采用前需要评估未解决问题对业务的影响。"));
+        }
+        if (contributors < 0) {
+            risks.add(new RadarRisk("INCOMPLETE_DATA", "LOW", "贡献者数据不完整", "GitHub 未返回完整贡献者数量，本次评分使用了保守处理。"));
+        }
+        return risks;
     }
 
     private int scoreFor(String criterion, Map<String, Object> metrics) {
@@ -152,6 +196,17 @@ public class RadarScoringService {
             return OffsetDateTime.parse(value).withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
         }
         return LocalDateTime.parse(value);
+    }
+
+    private long daysSince(String value) {
+        if (value == null || value.isBlank()) {
+            return Long.MAX_VALUE;
+        }
+        try {
+            return Math.max(0, ChronoUnit.DAYS.between(parseTime(value), LocalDateTime.now(ZoneOffset.UTC)));
+        } catch (Exception ignored) {
+            return -1;
+        }
     }
 
     private long number(Map<String, Object> metrics, String key) {

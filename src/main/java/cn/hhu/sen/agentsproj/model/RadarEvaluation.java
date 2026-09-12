@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.Map;
+import java.util.List;
 
 /**
  * Explainable evaluation produced from normalized repository facts.
@@ -18,4 +19,5 @@ public class RadarEvaluation {
     private String decision;
     private String summary;
     private Map<String, Integer> criteriaScores;
+    private List<RadarRisk> risks;
 }

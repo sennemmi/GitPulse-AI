@@ -1,6 +1,8 @@
 package cn.hhu.sen.agentsproj.service;
 
 import cn.hhu.sen.agentsproj.client.GitHubApiClient;
+import cn.hhu.sen.agentsproj.exception.BusinessException;
+import cn.hhu.sen.agentsproj.exception.NonRetryableException;
 import cn.hhu.sen.agentsproj.model.RadarEvidence;
 import cn.hhu.sen.agentsproj.model.RepositorySnapshotData;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +15,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
 
 /**
  * Collects repository facts. It is intentionally separate from scoring so the
@@ -27,7 +28,7 @@ public class RadarDataService {
     private final boolean demoMode;
 
     public RadarDataService(GitHubApiClient apiClient,
-                            @Value("${app.demo-mode:false}") boolean demoMode) {
+                            @Value("${app.radar.demo-mode:false}") boolean demoMode) {
         this.apiClient = apiClient;
         this.demoMode = demoMode;
     }
@@ -43,30 +44,27 @@ public class RadarDataService {
         String repo = parts[1];
         String collectedAt = Instant.now().toString();
 
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var metaFuture = executor.submit(() -> apiClient.getRepoMeta(owner, repo));
-            var readmeFuture = executor.submit(() -> apiClient.getReadme(owner, repo));
-            var treeFuture = executor.submit(() -> apiClient.getFileTree(owner, repo));
-            var contributorsFuture = executor.submit(() -> apiClient.getContributorCount(owner, repo));
-            var revisionFuture = executor.submit(() -> apiClient.getLatestCommitSha(owner, repo));
-
-            Map<String, Object> meta = metaFuture.get();
-            String readme = readmeFuture.get();
-            String rootTree = treeFuture.get();
-            int contributors = contributorsFuture.get();
-            String revision = revisionFuture.get();
+        try {
+            // Keep the calls sequential. It is slower than five concurrent calls,
+            // but is substantially more reliable behind local WSL HTTP proxies.
+            Map<String, Object> meta = apiClient.getRepoMeta(owner, repo);
+            String readme = apiClient.getReadme(owner, repo);
+            String rootTree = apiClient.getFileTree(owner, repo);
+            int contributors = apiClient.getContributorCount(owner, repo);
+            String revision = apiClient.getLatestCommitSha(owner, repo);
 
             Map<String, Object> metrics = buildMetrics(meta, readme, rootTree, contributors, revision);
+            metrics.put("collectedAt", collectedAt);
             List<RadarEvidence> evidence = buildEvidence(normalized, metrics, collectedAt);
             return new RepositorySnapshotData(
                     normalized,
                     revision == null || revision.isBlank() ? stringValue(metrics.get("lastPushedAt")) : revision,
                     metrics,
                     evidence);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("仓库数据采集被中断", e);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
+            if (e instanceof BusinessException || e instanceof NonRetryableException) {
+                throw e;
+            }
             log.error("[Radar] 采集仓库数据失败: {}", normalized, e);
             throw new IllegalStateException("仓库数据采集失败: " + e.getMessage(), e);
         }
@@ -171,6 +169,7 @@ public class RadarDataService {
         metrics.put("hasLicenseFile", true);
         metrics.put("sourceType", "demo");
         metrics.put("latestCommitSha", "demo-" + repoName.replace('/', '-'));
+        metrics.put("collectedAt", collectedAt);
 
         List<RadarEvidence> evidence = List.of(
                 new RadarEvidence("stars", stringValue(metrics.get("stars")), "demo://" + repoName, collectedAt, "演示数据"),

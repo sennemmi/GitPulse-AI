@@ -72,6 +72,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(404).body(response);
     }
 
+    @ExceptionHandler(NonRetryableException.class)
+    public ResponseEntity<ErrorResponse> handleNonRetryable(NonRetryableException e) {
+        log.warn("不可重试异常: [{}] {}", e.getErrorCode(), e.getMessage());
+        int status = "GITHUB_NOT_FOUND".equals(e.getErrorCode()) ? 404 : 400;
+        ErrorResponse response = new ErrorResponse(
+                e.getErrorCode(),
+                e.getMessage(),
+                LocalDateTime.now()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
     @ExceptionHandler(ImageGenerationException.class)
     public ResponseEntity<ErrorResponse> handleImageGenerationException(ImageGenerationException e) {
         ErrorCode errorCode = e.getErrorCode();

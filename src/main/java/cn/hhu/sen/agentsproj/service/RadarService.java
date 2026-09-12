@@ -7,6 +7,7 @@ import cn.hhu.sen.agentsproj.model.RadarEvidence;
 import cn.hhu.sen.agentsproj.model.RadarEvaluation;
 import cn.hhu.sen.agentsproj.model.RadarSnapshotView;
 import cn.hhu.sen.agentsproj.model.RadarWatchView;
+import cn.hhu.sen.agentsproj.model.RadarRisk;
 import cn.hhu.sen.agentsproj.model.RepositorySnapshotData;
 import cn.hhu.sen.agentsproj.repository.RadarSnapshotRepository;
 import cn.hhu.sen.agentsproj.repository.RadarWatchRepository;
@@ -17,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -100,6 +103,8 @@ public class RadarService {
         RadarSnapshot previous = snapshotRepository.findTopByWatchIdOrderByCreatedTimeDesc(watchId).orElse(null);
         RepositorySnapshotData data = dataService.collect(watch.getRepoName());
         RadarEvaluation evaluation = scoringService.evaluate(data, watch.getTemplateJson());
+        Map<String, Object> metrics = new LinkedHashMap<>(data.getMetrics());
+        metrics.put("riskFlags", evaluation.getRisks());
 
         RadarSnapshot snapshot = new RadarSnapshot();
         snapshot.setWatchId(watch.getId());
@@ -108,7 +113,7 @@ public class RadarService {
         snapshot.setDecision(evaluation.getDecision());
         snapshot.setSummary(evaluation.getSummary());
         snapshot.setSourceRevision(data.getSourceRevision());
-        snapshot.setMetricsJson(writeJson(data.getMetrics()));
+        snapshot.setMetricsJson(writeJson(metrics));
         snapshot.setCriteriaScoresJson(writeJson(evaluation.getCriteriaScores()));
         snapshot.setEvidenceJson(writeJson(data.getEvidence()));
         RadarSnapshot saved = snapshotRepository.save(snapshot);
@@ -183,6 +188,7 @@ public class RadarService {
     }
 
     private RadarSnapshotView toSnapshotView(RadarSnapshot snapshot, RadarSnapshot previous) {
+        Map<String, Object> metrics = readMap(snapshot.getMetricsJson());
         return new RadarSnapshotView(
                 snapshot.getId(),
                 snapshot.getWatchId(),
@@ -191,10 +197,12 @@ public class RadarService {
                 snapshot.getDecision(),
                 snapshot.getSummary(),
                 snapshot.getSourceRevision(),
-                readMap(snapshot.getMetricsJson()),
+                metrics,
                 readIntMap(snapshot.getCriteriaScoresJson()),
                 readEvidence(snapshot.getEvidenceJson()),
+                readRisks(metrics),
                 calculateChanges(snapshot, previous),
+                freshness(snapshot.getCreatedTime()),
                 snapshot.getCreatedTime());
     }
 
@@ -244,6 +252,32 @@ public class RadarService {
         } catch (Exception e) {
             throw new IllegalStateException("快照证据解析失败", e);
         }
+    }
+
+    private List<RadarRisk> readRisks(Map<String, Object> metrics) {
+        Object value = metrics.get("riskFlags");
+        if (value == null) {
+            return List.of();
+        }
+        try {
+            return objectMapper.convertValue(value, new TypeReference<List<RadarRisk>>() {});
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("快照风险解析失败", e);
+        }
+    }
+
+    private String freshness(LocalDateTime createdTime) {
+        if (createdTime == null) {
+            return "UNKNOWN";
+        }
+        long days = Math.max(0, ChronoUnit.DAYS.between(createdTime, LocalDateTime.now()));
+        if (days <= 7) {
+            return "FRESH";
+        }
+        if (days <= 30) {
+            return "AGING";
+        }
+        return "STALE";
     }
 
     private String writeJson(Object value) {

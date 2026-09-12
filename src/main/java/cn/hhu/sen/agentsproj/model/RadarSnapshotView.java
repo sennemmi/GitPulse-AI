@@ -15,6 +15,8 @@ public record RadarSnapshotView(
         Map<String, Object> metrics,
         Map<String, Integer> criteriaScores,
         List<RadarEvidence> evidence,
+        List<RadarRisk> risks,
         Map<String, String> changes,
+        String freshness,
         LocalDateTime createdTime) {
 }
